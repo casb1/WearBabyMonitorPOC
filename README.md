@@ -1,4 +1,4 @@
-# Wear Baby Monitor POC v0.5.0
+# Wear Baby Monitor POC v0.5.1
 
 A deliberately small proof of concept with two Android application modules:
 
@@ -39,8 +39,8 @@ gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:a
 
 The successful workflow artifact contains:
 
-- `baby-monitor-phone-v0.5.0-debug.apk`
-- `baby-monitor-watch-v0.5.0-debug.apk`
+- `baby-monitor-phone-v0.5.1-debug.apk`
+- `baby-monitor-watch-v0.5.1-debug.apk`
 
 The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 

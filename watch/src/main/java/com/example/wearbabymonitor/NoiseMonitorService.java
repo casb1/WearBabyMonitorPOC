@@ -278,7 +278,6 @@ public final class NoiseMonitorService extends Service {
                 .setContentText(text)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
-                .setSilent(true)
                 .setContentIntent(openApp)
                 .build();
     }

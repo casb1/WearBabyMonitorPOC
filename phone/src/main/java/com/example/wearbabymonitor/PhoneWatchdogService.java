@@ -118,7 +118,6 @@ public final class PhoneWatchdogService extends Service {
                 .setContentText(text)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
-                .setSilent(true)
                 .setContentIntent(openApp)
                 .build();
     }

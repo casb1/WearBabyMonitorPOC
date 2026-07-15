@@ -37,7 +37,6 @@ watch_source = (root / "watch/src/main/java/com/example/wearbabymonitor/NoiseMon
 for required in [
     "channel.setSound(null, null)",
     "channel.enableVibration(false)",
-    ".setSilent(true)",
 ]:
     if required not in watch_source:
         errors.append(f"Watch silence guard missing: {required}")

@@ -1,5 +1,5 @@
-WearBabyMonitorPOC v0.5.0
-versionCode: 6
+WearBabyMonitorPOC v0.5.1
+versionCode: 7
 
 Fresh Java rebuild:
 - Pure Android Java source; no Kotlin or AndroidX dependency.
@@ -7,3 +7,7 @@ Fresh Java rebuild:
 - Deprecated BIND_LISTENER is absent.
 - GitHub Actions builds assembleDebug only; lint cannot block APK production.
 - Watch notification channel, notifications, buttons, and haptic feedback are silent/non-vibrating.
+
+Build fix:
+- Removed Notification.Builder.setSilent(true), which is not available on android.app.Notification.Builder.
+- Silence remains enforced by notification-channel sound/vibration settings.
