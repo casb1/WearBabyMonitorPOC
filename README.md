@@ -68,3 +68,7 @@ See [`docs/TEST_CHECKLIST.md`](docs/TEST_CHECKLIST.md) before relying on longer 
 - There is no live audio stream.
 - There is no encrypted application-level payload; Data Layer transport itself is restricted to matching package/signing identities and encrypted by Google Play services.
 - The project has not yet been compiled or exercised on the target physical devices from this environment. The first GitHub Actions run is the compilation gate.
+## v0.4.2 rebuild
+
+This archive is a complete project with all files at the ZIP root. It replaces the deprecated Wear OS `BIND_LISTENER` manifest action and uses path-specific `MESSAGE_RECEIVED` filters. `VERSION.txt` confirms that the correct archive was extracted.
+
