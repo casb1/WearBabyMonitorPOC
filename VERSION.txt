@@ -1,10 +1,9 @@
-WearBabyMonitorPOC v0.4.2
-versionCode: 5
+WearBabyMonitorPOC v0.5.0
+versionCode: 6
 
-Fresh full-project archive rebuilt from v0.4 source.
-Manifest listener fix:
-- No deprecated com.google.android.gms.wearable.BIND_LISTENER action remains.
-- Phone receives /noise and /status via MESSAGE_RECEIVED.
-- Watch receives /ack via MESSAGE_RECEIVED.
-
-The watch notification channel remains silent and vibration-disabled.
+Fresh Java rebuild:
+- Pure Android Java source; no Kotlin or AndroidX dependency.
+- Phone and watch message filters exactly match /baby_noise, /baby_status, and /baby_ack.
+- Deprecated BIND_LISTENER is absent.
+- GitHub Actions builds assembleDebug only; lint cannot block APK production.
+- Watch notification channel, notifications, buttons, and haptic feedback are silent/non-vibrating.

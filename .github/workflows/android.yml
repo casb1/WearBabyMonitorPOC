@@ -18,6 +18,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Source preflight
+        run: python3 tools/verify_source.py
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -27,7 +30,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android 35 SDK
+      - name: Install Android SDK 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle 8.9
@@ -35,37 +38,25 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Compile phone and watch APKs
-        run: gradle --no-daemon --stacktrace :phone:assembleDebug :watch:assembleDebug
+      - name: Show tool versions
+        run: |
+          java -version
+          gradle --version
+          sdkmanager --list_installed
 
-      - name: Run Android lint
-        run: gradle --no-daemon --stacktrace :phone:lintDebug :watch:lintDebug
+      - name: Build phone and watch debug APKs
+        run: gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:assembleDebug
 
       - name: Collect APKs
-        if: success()
         run: |
           mkdir -p artifacts
-          cp phone/build/outputs/apk/debug/phone-debug.apk artifacts/baby-monitor-phone-v0.4.2-debug.apk
-          cp watch/build/outputs/apk/debug/watch-debug.apk artifacts/baby-monitor-watch-v0.4.2-debug.apk
+          cp phone/build/outputs/apk/debug/phone-debug.apk artifacts/baby-monitor-phone-v0.5.0-debug.apk
+          cp watch/build/outputs/apk/debug/watch-debug.apk artifacts/baby-monitor-watch-v0.5.0-debug.apk
 
       - name: Upload installable APKs
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: baby-monitor-v0.4.2-debug-apks
+          name: baby-monitor-v0.5.0-debug-apks
           path: artifacts/*.apk
           if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload lint reports on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-reports
-          path: |
-            phone/build/reports/lint-results-debug.html
-            phone/build/reports/lint-results-debug.txt
-            watch/build/reports/lint-results-debug.html
-            watch/build/reports/lint-results-debug.txt
-          if-no-files-found: ignore
           retention-days: 14

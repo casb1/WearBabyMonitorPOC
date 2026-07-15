@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-feature android:name="android.hardware.type.watch" />
+    <uses-feature android:name="android.hardware.type.watch" android:required="true" />
     <uses-feature android:name="android.hardware.microphone" android:required="true" />
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -12,7 +12,7 @@
         android:allowBackup="false"
         android:label="Baby Monitor Watch"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme"
+        android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false">
 
         <activity
@@ -32,7 +32,7 @@
                 <data
                     android:scheme="wear"
                     android:host="*"
-                    android:pathPrefix="/ack" />
+                    android:pathPrefix="/baby_ack" />
             </intent-filter>
         </service>
 

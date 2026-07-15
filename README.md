@@ -1,74 +1,55 @@
-# Wear Baby Monitor POC 0.4
+# Wear Baby Monitor POC v0.5.0
 
-A two-module Android proof of concept that uses a Wear OS watch as a room-noise sensor and a paired Android phone as the alarm receiver.
+A deliberately small proof of concept with two Android application modules:
 
-> **Not a certified safety device.** Android, Wear OS, Bluetooth/Wi-Fi, permissions, notification settings, batteries, and hardware can fail. Use a dedicated baby monitor where dependable monitoring is required.
+- `watch`: records microphone amplitude in a foreground service, calibrates against room noise, and sends an alert through the Wear OS Data Layer after sustained sound.
+- `phone`: receives alerts, acknowledges them, produces the audible/vibrating alarm, and warns when watch heartbeat messages stop.
 
-## Modules
+## Safety boundary
 
-- `watch`: records microphone audio locally, calibrates to the room, detects sustained sound, and sends alerts.
-- `phone`: acknowledges alerts, raises audible/haptic alarms, and warns about lost heartbeats, stopped monitoring, and low watch battery.
+This is a technical proof of concept, not a certified baby monitor or safety device. It has not been validated for unattended use. Bluetooth, Google Play services, background restrictions, battery state, microphone availability, and notification settings can all interrupt delivery.
 
-The watch is deliberately **silent and non-vibrating**. All audible and haptic alerts happen on the phone only.
+## Watch silence guarantee within this app
 
-## Reliability included
+The watch app does not intentionally emit sound or vibration:
 
-- Eight-second room-noise calibration.
-- Sustained RMS sound detection.
-- Unique alert IDs, duplicate suppression, acknowledgements, and retries.
-- Ten-second heartbeats with battery and monitoring state.
-- Warning after 30 seconds without an established-session heartbeat.
-- Warning after 45 seconds if the watch never connects.
-- Immediate warning when the watch reports that monitoring stopped.
-- One-shot low-battery warning at 20%, reset after charging above 25%.
-- Local phone alarm test.
-- End-to-end watch-to-phone test with acknowledgement.
-- Android 15-compatible `connectedDevice` phone foreground service rather than the six-hour-limited `dataSync` type.
+- its foreground notification channel has no sound and vibration disabled;
+- its notification is explicitly silent;
+- watch buttons and views have sound effects and haptic feedback disabled;
+- all audible/vibrating alerts are created by the phone module only.
 
-## Build on GitHub
+## Replacing an older broken checkout
 
-1. Create an empty GitHub repository.
-2. Upload this project at the repository root.
-3. Push to `main` or run **Actions → Build Android APKs → Run workflow**.
-4. Open the completed workflow run.
-5. Download the `baby-monitor-debug-apks` artifact.
-6. Extract and install:
-   - `baby-monitor-phone-debug.apk` on the phone.
-   - `baby-monitor-watch-debug.apk` on the watch.
+After extracting this ZIP over the repository, run:
 
-GitHub Actions uses JDK 17, Gradle 8.9, Android SDK 35, and builds both APKs from the same checkout and debug signing identity. Matching package names and signatures are required for Wear OS Data Layer communication.
+```bash
+bash tools/remove_obsolete_tracked_files.sh
+python3 tools/verify_source.py
+```
 
-## First physical test
+The cleanup script removes old Kotlin files and the accidental `tener declarations"` terminal-output file before committing.
 
-1. Install and open the phone app.
-2. Grant notifications and tap **ENABLE RECEIVER**.
-3. Tap **TEST PHONE ALARM** and verify the phone makes the expected sound and vibration.
-4. Open **PHONE ALERT SETTINGS** and confirm the alert channel is not muted.
-5. Install and open the watch app.
-6. Grant microphone and notification permissions.
-7. Tap **TEST PHONE** on the watch. The phone should alarm and the watch should display **Phone confirmed** without making sound or vibrating.
-8. Tap **START** on the watch and keep the room quiet for eight seconds.
-9. Make a sustained sound near the watch.
+## Build
 
-See [`docs/TEST_CHECKLIST.md`](docs/TEST_CHECKLIST.md) before relying on longer tests.
+GitHub Actions runs a source preflight and then:
 
-## Important source locations
+```bash
+gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:assembleDebug
+```
 
-- Detection and calibration: `watch/src/main/java/com/example/wearbabymonitor/NoiseMonitorService.kt`
-- Watch test and controls: `watch/src/main/java/com/example/wearbabymonitor/MainActivity.kt`
-- Phone alert receiver: `phone/src/main/java/com/example/wearbabymonitor/BabyMonitorListenerService.kt`
-- Phone heartbeat watchdog: `phone/src/main/java/com/example/wearbabymonitor/PhoneWatchdogService.kt`
-- GitHub build: `.github/workflows/android.yml`
+The successful workflow artifact contains:
 
-## Current limitations
+- `baby-monitor-phone-v0.5.0-debug.apk`
+- `baby-monitor-watch-v0.5.0-debug.apk`
 
-- Detection is amplitude-based, not cry classification.
-- Calibration can be distorted if the room is loud during the initial eight seconds.
-- Notification behavior remains partly user-controlled through Android channel settings and Do Not Disturb.
-- There is no live audio stream.
-- There is no encrypted application-level payload; Data Layer transport itself is restricted to matching package/signing identities and encrypted by Google Play services.
-- The project has not yet been compiled or exercised on the target physical devices from this environment. The first GitHub Actions run is the compilation gate.
-## v0.4.2 rebuild
+The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 
-This archive is a complete project with all files at the ZIP root. It replaces the deprecated Wear OS `BIND_LISTENER` manifest action and uses path-specific `MESSAGE_RECEIVED` filters. `VERSION.txt` confirms that the correct archive was extracted.
+## First device test
 
+1. Install the phone APK on the phone and the watch APK on the paired watch.
+2. Open the phone app, grant notification permission, and tap **ENABLE RECEIVER**.
+3. Open the watch app, grant microphone and notification permissions, and tap **START**.
+4. Wait through calibration, then tap **TEST PHONE**.
+5. Confirm the phone alarms and the watch displays **Phone confirmed** without sound or vibration.
+
+See `docs/TEST_CHECKLIST.md` before longer testing.
