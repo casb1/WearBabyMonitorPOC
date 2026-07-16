@@ -17,6 +17,7 @@ import android.os.SystemClock;
 import com.google.android.gms.wearable.Wearable;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -122,10 +123,14 @@ public final class NoiseMonitorService extends Service {
         short[] buffer = new short[bufferSize];
         List<Double> calibrationSamples = new ArrayList<>();
         long calibrationEnd = SystemClock.elapsedRealtime() + CALIBRATION_MS;
-        int loudWindows = 0;
+        ArrayDeque<ActivitySample> activity = new ArrayDeque<>();
+        long activityDurationMs = 0L;
+        long loudDurationMs = 0L;
         String sensitivity = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SENSITIVITY, "medium");
         double baselineMultiplier = sensitivityMultiplier(sensitivity);
-        int requiredLoudWindows = sensitivityWindows(sensitivity);
+        long rollingWindowMs = activityWindowMs(sensitivity);
+        long minimumObservedMs = minimumObservedMs(sensitivity);
+        double requiredLoudFraction = requiredLoudFraction(sensitivity);
 
         try {
             audioRecord.startRecording();
@@ -158,14 +163,31 @@ public final class NoiseMonitorService extends Service {
                     sendStatus(true, "monitoring");
                 }
 
-                loudWindows = rms >= calibratedThreshold ? loudWindows + 1 : 0;
-                if (loudWindows >= requiredLoudWindows) {
+                long sampleDurationMs = Math.max(1L, Math.round(count * 1000.0 / 16000.0));
+                boolean loud = rms >= calibratedThreshold;
+                activity.addLast(new ActivitySample(sampleDurationMs, loud));
+                activityDurationMs += sampleDurationMs;
+                if (loud) loudDurationMs += sampleDurationMs;
+
+                while (activityDurationMs > rollingWindowMs && !activity.isEmpty()) {
+                    ActivitySample removed = activity.removeFirst();
+                    activityDurationMs -= removed.durationMs;
+                    if (removed.loud) loudDurationMs -= removed.durationMs;
+                }
+
+                double loudFraction = activityDurationMs == 0L
+                        ? 0.0
+                        : (double) loudDurationMs / (double) activityDurationMs;
+                if (activityDurationMs >= minimumObservedMs
+                        && loudFraction >= requiredLoudFraction) {
                     long now = System.currentTimeMillis();
                     if (now - lastAlertAt >= ALERT_COOLDOWN_MS) {
                         lastAlertAt = now;
                         deliverAlertWithRetry(rms);
                     }
-                    loudWindows = 0;
+                    activity.clear();
+                    activityDurationMs = 0L;
+                    loudDurationMs = 0L;
                 }
 
                 if (nowElapsed - lastStatusAt >= STATUS_INTERVAL_MS) {
@@ -186,10 +208,30 @@ public final class NoiseMonitorService extends Service {
         return 3.0;
     }
 
-    private int sensitivityWindows(String sensitivity) {
-        if ("high".equals(sensitivity)) return 2;
-        if ("low".equals(sensitivity)) return 4;
-        return 3;
+    private long activityWindowMs(String sensitivity) {
+        return 2200L;
+    }
+
+    private long minimumObservedMs(String sensitivity) {
+        if ("high".equals(sensitivity)) return 700L;
+        if ("low".equals(sensitivity)) return 1100L;
+        return 850L;
+    }
+
+    private double requiredLoudFraction(String sensitivity) {
+        if ("high".equals(sensitivity)) return 0.28;
+        if ("low".equals(sensitivity)) return 0.60;
+        return 0.42;
+    }
+
+    private static final class ActivitySample {
+        final long durationMs;
+        final boolean loud;
+
+        ActivitySample(long durationMs, boolean loud) {
+            this.durationMs = durationMs;
+            this.loud = loud;
+        }
     }
 
     private void deliverAlertWithRetry(double rms) {

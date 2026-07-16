@@ -9,6 +9,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.google.android.gms.wearable.Wearable;
@@ -41,20 +42,35 @@ public final class MainActivity extends Activity {
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setGravity(Gravity.CENTER);
-        layout.setPadding(18, 18, 18, 18);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        layout.setPadding(26, 26, 26, 48);
         silenceView(layout);
         layout.addView(status);
         layout.addView(start);
         layout.addView(stop);
         layout.addView(test);
         layout.addView(sensitivity);
-        setContentView(layout);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setVerticalScrollBarEnabled(true);
+        scrollView.setSmoothScrollingEnabled(true);
+        silenceView(scrollView);
+        scrollView.addView(
+                layout,
+                new ScrollView.LayoutParams(
+                        ScrollView.LayoutParams.MATCH_PARENT,
+                        ScrollView.LayoutParams.WRAP_CONTENT
+                )
+        );
+        setContentView(scrollView);
     }
 
     private Button button(String text, Runnable action) {
         Button button = new Button(this);
         button.setText(text);
+        button.setMinHeight(56);
+        button.setAllCaps(false);
         silenceView(button);
         button.setOnClickListener(view -> action.run());
         return button;

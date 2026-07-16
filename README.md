@@ -1,4 +1,4 @@
-# Wear Baby Monitor POC v0.6.0
+# Wear Baby Monitor POC v0.6.1
 
 A deliberately small proof of concept with two Android application modules:
 
@@ -39,8 +39,8 @@ gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:a
 
 The successful workflow artifact contains:
 
-- `baby-monitor-phone-v0.6.0-debug.apk`
-- `baby-monitor-watch-v0.6.0-debug.apk`
+- `baby-monitor-phone-v0.6.1-debug.apk`
+- `baby-monitor-watch-v0.6.1-debug.apk`
 
 The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 
@@ -61,3 +61,11 @@ See `docs/TEST_CHECKLIST.md` before longer testing.
 - A real noise event creates a persistent active-alert state until acknowledged in the phone app.
 - The phone keeps the eight most recent alert and acknowledgement events with timestamps.
 - The watch offers Low, Medium, and High sensitivity. Medium preserves the detector behavior from v0.5.1. Changes apply the next time monitoring starts.
+
+
+## v0.6.1 watch reliability pass
+
+- The watch screen is vertically scrollable so every control is reachable on a round display.
+- Detection now measures how much sound activity occurs within a rolling 2.2-second interval. Brief quiet gaps no longer erase all progress.
+- High favors intermittent quiet sounds, Medium stays near the previous working sensitivity, and Low requires more sustained activity.
+- This remains general sound-activity detection, not baby-cry classification or machine learning.

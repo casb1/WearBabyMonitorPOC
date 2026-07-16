@@ -48,6 +48,7 @@ for required, source, label in [
     ("ACKNOWLEDGE ALERT", phone_main, "phone acknowledgement UI"),
     ("KEY_ALERT_HISTORY", phone_listener, "alert history"),
     ("SENSITIVITY:", watch_main, "watch sensitivity UI"),
+    ("ScrollView", watch_main, "scrollable watch UI"),
 ]:
     if required not in source:
         errors.append(f"Missing {label}: {required}")
@@ -55,6 +56,9 @@ for required, source, label in [
 kotlin_files = list(root.rglob("*.kt"))
 if kotlin_files:
     errors.append("Unexpected Kotlin source remains: " + ", ".join(str(p.relative_to(root)) for p in kotlin_files))
+
+if "requiredLoudFraction" not in watch_source or "ArrayDeque<ActivitySample>" not in watch_source:
+    errors.append("Rolling sound-activity detector is missing")
 
 if errors:
     print("Source preflight failed:", file=sys.stderr)
