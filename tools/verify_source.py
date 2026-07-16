@@ -58,8 +58,12 @@ kotlin_files = list(root.rglob("*.kt"))
 if kotlin_files:
     errors.append("Unexpected Kotlin source remains: " + ", ".join(str(p.relative_to(root)) for p in kotlin_files))
 
-if "requiredLoudFraction" not in watch_source or "ArrayDeque<ActivitySample>" not in watch_source:
+if "requiredLoudFraction" not in watch_source or "RollingActivityWindow" not in watch_source:
     errors.append("Rolling sound-activity detector is missing")
+if "STATUS_INTERVAL_MS = 60000L" not in watch_source:
+    errors.append("60-second battery-optimized status interval is missing")
+if "KEY_BATTERY_DRAIN_PER_HOUR" not in phone_listener:
+    errors.append("Phone battery-drain estimate is missing")
 
 if errors:
     print("Source preflight failed:", file=sys.stderr)

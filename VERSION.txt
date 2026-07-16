@@ -1,8 +1,9 @@
-WearBabyMonitorPOC v0.6.2
-versionCode: 10
+WearBabyMonitorPOC v0.6.3
+versionCode: 11
 
-Small reliability pass:
-- Watch status persists when reopening the app.
-- Recalibrate Room button restarts the quiet-room calibration without stopping monitoring.
-- AudioRecord terminal read errors now stop monitoring and notify the phone instead of silently looping.
-- Rolling detector and watch silence guarantees remain unchanged.
+Battery optimization pass:
+- Routine watch status interval increased to 60 seconds.
+- Fixed-allocation rolling detector and lower-priority workers reduce avoidable CPU/GC overhead.
+- Phone watchdog cadence and disconnect timeout adjusted for 60-second status updates.
+- Phone displays a measured battery-drain estimate after enough session data exists.
+- Watch remains completely silent and non-vibrating.

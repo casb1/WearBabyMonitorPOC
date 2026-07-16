@@ -21,6 +21,7 @@ public final class MainActivity extends Activity {
     private TextView status;
     private TextView alertState;
     private TextView history;
+    private TextView batteryEstimate;
     private boolean startAfterPermission;
 
     @Override
@@ -31,6 +32,7 @@ public final class MainActivity extends Activity {
         status = textView(19f);
         alertState = textView(22f);
         history = textView(15f);
+        batteryEstimate = textView(15f);
 
         Button acknowledge = button("ACKNOWLEDGE ALERT", this::acknowledgeAlert);
         Button enable = button("ENABLE RECEIVER", this::enableReceiverWithPermission);
@@ -49,6 +51,7 @@ public final class MainActivity extends Activity {
         layout.addView(disable);
         layout.addView(test);
         layout.addView(settings);
+        layout.addView(batteryEstimate);
         layout.addView(history);
         setContentView(layout);
         refreshStatus();
@@ -90,6 +93,9 @@ public final class MainActivity extends Activity {
                 .putBoolean(BabyMonitorListenerService.KEY_RECEIVER_ENABLED, true)
                 .putLong(BabyMonitorListenerService.KEY_LAST_HEARTBEAT, 0L)
                 .putBoolean(BabyMonitorListenerService.KEY_WATCH_MONITORING, false)
+                .remove(BabyMonitorListenerService.KEY_BATTERY_SESSION_START_TIME)
+                .remove(BabyMonitorListenerService.KEY_BATTERY_SESSION_START_LEVEL)
+                .remove(BabyMonitorListenerService.KEY_BATTERY_DRAIN_PER_HOUR)
                 .apply();
         startForegroundService(new Intent(this, PhoneWatchdogService.class));
         refreshStatus();
@@ -169,6 +175,15 @@ public final class MainActivity extends Activity {
         }
 
         alertState.setText(activeAlert ? "⚠ NOISE DETECTED — ACKNOWLEDGE" : "No active alert");
+        if (monitoring && prefs.contains(BabyMonitorListenerService.KEY_BATTERY_DRAIN_PER_HOUR)) {
+            float drain = prefs.getFloat(BabyMonitorListenerService.KEY_BATTERY_DRAIN_PER_HOUR, 0f);
+            batteryEstimate.setText(String.format(java.util.Locale.getDefault(),
+                    "Estimated watch drain: %.1f%% per hour", drain));
+        } else if (monitoring) {
+            batteryEstimate.setText("Battery estimate: collecting data (needs at least 30 minutes and a 2% drop)");
+        } else {
+            batteryEstimate.setText("");
+        }
         String value = prefs.getString(BabyMonitorListenerService.KEY_ALERT_HISTORY, "");
         history.setText(value.isEmpty() ? "Alert history\nNo alerts yet" : "Alert history\n" + value);
     }

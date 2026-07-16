@@ -28,6 +28,9 @@ public final class BabyMonitorListenerService extends WearableListenerService {
     static final String KEY_LOW_BATTERY_WARNED = "low_battery_warned";
     static final String KEY_ACTIVE_ALERT = "active_alert";
     static final String KEY_ALERT_HISTORY = "alert_history";
+    static final String KEY_BATTERY_SESSION_START_TIME = "battery_session_start_time";
+    static final String KEY_BATTERY_SESSION_START_LEVEL = "battery_session_start_level";
+    static final String KEY_BATTERY_DRAIN_PER_HOUR = "battery_drain_per_hour";
 
     static final String ALERT_CHANNEL_ID = "baby_monitor_alerts_v3";
     static final String WARNING_CHANNEL_ID = "baby_monitor_warnings_v3";
@@ -38,6 +41,8 @@ public final class BabyMonitorListenerService extends WearableListenerService {
     private static final int LOW_BATTERY_PERCENT = 20;
     private static final int LOW_BATTERY_RESET_PERCENT = 25;
     private static final int MAX_HISTORY_LINES = 8;
+    private static final long BATTERY_ESTIMATE_MIN_MS = 30L * 60L * 1000L;
+    private static final int BATTERY_ESTIMATE_MIN_DROP = 2;
 
     @Override
     public void onMessageReceived(MessageEvent event) {
@@ -122,11 +127,33 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         boolean previouslyMonitoring = prefs.getBoolean(KEY_WATCH_MONITORING, false);
         boolean lowBatteryWarned = prefs.getBoolean(KEY_LOW_BATTERY_WARNED, false);
 
-        prefs.edit()
-                .putLong(KEY_LAST_HEARTBEAT, System.currentTimeMillis())
+        long now = System.currentTimeMillis();
+        SharedPreferences.Editor editor = prefs.edit()
+                .putLong(KEY_LAST_HEARTBEAT, now)
                 .putInt(KEY_WATCH_BATTERY, battery)
-                .putBoolean(KEY_WATCH_MONITORING, monitoring)
-                .apply();
+                .putBoolean(KEY_WATCH_MONITORING, monitoring);
+
+        if (monitoring && battery >= 0) {
+            long sessionStartTime = prefs.getLong(KEY_BATTERY_SESSION_START_TIME, 0L);
+            int sessionStartLevel = prefs.getInt(KEY_BATTERY_SESSION_START_LEVEL, -1);
+            if (!previouslyMonitoring || sessionStartTime == 0L || sessionStartLevel < 0) {
+                editor.putLong(KEY_BATTERY_SESSION_START_TIME, now)
+                        .putInt(KEY_BATTERY_SESSION_START_LEVEL, battery)
+                        .remove(KEY_BATTERY_DRAIN_PER_HOUR);
+            } else {
+                long elapsedMs = now - sessionStartTime;
+                int drop = sessionStartLevel - battery;
+                if (elapsedMs >= BATTERY_ESTIMATE_MIN_MS && drop >= BATTERY_ESTIMATE_MIN_DROP) {
+                    float drainPerHour = (float) (drop * 3600000.0 / elapsedMs);
+                    editor.putFloat(KEY_BATTERY_DRAIN_PER_HOUR, drainPerHour);
+                }
+            }
+        } else if (!monitoring) {
+            editor.remove(KEY_BATTERY_SESSION_START_TIME)
+                    .remove(KEY_BATTERY_SESSION_START_LEVEL)
+                    .remove(KEY_BATTERY_DRAIN_PER_HOUR);
+        }
+        editor.apply();
 
         if (receiverEnabled && previouslyMonitoring && !monitoring) {
             showWarning("Watch monitoring stopped", stateText(state), MONITORING_STOPPED_NOTIFICATION_ID);

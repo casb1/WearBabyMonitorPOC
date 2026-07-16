@@ -13,14 +13,15 @@ public final class PhoneWatchdogService extends Service {
     static final int ONGOING_ID = 4200;
     static final int DISCONNECT_ID = 4201;
 
-    private static final long CHECK_INTERVAL_MS = 5000L;
-    private static final long DISCONNECT_AFTER_MS = 30000L;
-    private static final long INITIAL_CONNECT_GRACE_MS = 45000L;
+    private static final long CHECK_INTERVAL_MS = 15000L;
+    private static final long DISCONNECT_AFTER_MS = 150000L;
+    private static final long INITIAL_CONNECT_GRACE_MS = 90000L;
 
     private volatile boolean running;
     private Thread worker;
     private long serviceStartedAt;
     private boolean disconnectAlertShown;
+    private String lastOngoingText;
 
     @Override
     public void onCreate() {
@@ -31,7 +32,7 @@ public final class PhoneWatchdogService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(ONGOING_ID, ongoingNotification("Waiting for watch heartbeat…"));
+        startForeground(ONGOING_ID, ongoingNotification("Waiting for watch status…"));
         if (!running) startLoop();
         return START_STICKY;
     }
@@ -62,6 +63,7 @@ public final class PhoneWatchdogService extends Service {
                 }
             }
         }, "phone-monitor-watchdog");
+        worker.setPriority(Thread.NORM_PRIORITY - 1);
         worker.start();
     }
 
@@ -83,10 +85,10 @@ public final class PhoneWatchdogService extends Service {
             updateOngoing("Watch has not connected");
             showDisconnectAlert(
                     "Baby monitor not connected",
-                    "No heartbeat has arrived from the watch. Start monitoring and run the watch test."
+                    "No status has arrived from the watch. Start monitoring and run the watch test."
             );
         } else if (last == 0L) {
-            updateOngoing("Waiting for watch heartbeat…");
+            updateOngoing("Waiting for watch status…");
         } else if (!monitoring) {
             disconnectAlertShown = false;
             updateOngoing("Watch connected • monitoring stopped");
@@ -94,7 +96,7 @@ public final class PhoneWatchdogService extends Service {
             updateOngoing("Watch connection lost");
             showDisconnectAlert(
                     "Baby monitor disconnected",
-                    "No heartbeat has arrived from the watch. Check Bluetooth, battery, and the watch app."
+                    "No status has arrived from the watch for over two minutes. Check Bluetooth, battery, and the watch app."
             );
         } else {
             disconnectAlertShown = false;
@@ -123,6 +125,8 @@ public final class PhoneWatchdogService extends Service {
     }
 
     private void updateOngoing(String text) {
+        if (text.equals(lastOngoingText)) return;
+        lastOngoingText = text;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.notify(ONGOING_ID, ongoingNotification(text));
     }

@@ -1,4 +1,4 @@
-# Wear Baby Monitor POC v0.6.2
+# Wear Baby Monitor POC v0.6.3
 
 A deliberately small proof of concept with two Android application modules:
 
@@ -39,8 +39,8 @@ gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:a
 
 The successful workflow artifact contains:
 
-- `baby-monitor-phone-v0.6.2-debug.apk`
-- `baby-monitor-watch-v0.6.2-debug.apk`
+- `baby-monitor-phone-v0.6.3-debug.apk`
+- `baby-monitor-watch-v0.6.3-debug.apk`
 
 The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 
@@ -76,3 +76,15 @@ See `docs/TEST_CHECKLIST.md` before longer testing.
 - The watch UI restores the actual monitoring/calibration state when reopened instead of always displaying Stopped.
 - **Recalibrate Room** restarts the eight-second baseline calibration without a full stop/start cycle. Keep the room quiet during calibration.
 - Fatal microphone read errors now stop monitoring and report an audio error instead of leaving a foreground service that appears active but cannot hear anything.
+
+
+## v0.6.3 battery optimization pass
+
+- Routine watch-to-phone status transmission reduced from 10 seconds to 60 seconds.
+- Phone disconnect detection now allows for the longer interval and warns after roughly 2.5 minutes without status.
+- Rolling detector uses a fixed primitive ring buffer to avoid per-sample object allocation and garbage collection.
+- Monitoring and retry worker threads run at slightly reduced priority.
+- Duplicate foreground-notification refreshes are suppressed.
+- Only one alert retry loop may run at a time.
+- The phone estimates watch battery drain after at least 30 minutes and a measured 2% battery drop.
+- Continuous microphone capture remains enabled; duty cycling was intentionally avoided because it would create detection blind spots.

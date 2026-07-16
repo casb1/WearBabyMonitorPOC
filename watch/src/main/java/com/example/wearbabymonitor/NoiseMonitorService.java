@@ -17,12 +17,12 @@ import android.os.SystemClock;
 import com.google.android.gms.wearable.Wearable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NoiseMonitorService extends Service {
     static final String PREFS = "watch_monitor_settings";
@@ -36,7 +36,7 @@ public final class NoiseMonitorService extends Service {
     private static final double MIN_THRESHOLD = 0.018;
     private static final long CALIBRATION_MS = 8000L;
     private static final long ALERT_COOLDOWN_MS = 10000L;
-    private static final long STATUS_INTERVAL_MS = 10000L;
+    private static final long STATUS_INTERVAL_MS = 60000L;
     private static final int MAX_SEND_ATTEMPTS = 6;
     private static final long RETRY_INTERVAL_MS = 1500L;
     private static final int LOW_BATTERY_PERCENT = 20;
@@ -51,6 +51,8 @@ public final class NoiseMonitorService extends Service {
     private boolean warnedDisconnected;
     private boolean warnedLowBattery;
     private volatile boolean recalibrationRequested;
+    private final AtomicBoolean alertRetryActive = new AtomicBoolean(false);
+    private String lastNotificationText;
 
     @Override
     public void onCreate() {
@@ -131,6 +133,7 @@ public final class NoiseMonitorService extends Service {
         running = true;
         updateMonitoringPreference(true, "calibrating");
         worker = new Thread(() -> recordLoop(audioRecord, bufferSize), "baby-noise-monitor");
+        worker.setPriority(Thread.NORM_PRIORITY - 1);
         worker.start();
     }
 
@@ -138,9 +141,7 @@ public final class NoiseMonitorService extends Service {
         short[] buffer = new short[bufferSize];
         List<Double> calibrationSamples = new ArrayList<>();
         long calibrationEnd = SystemClock.elapsedRealtime() + CALIBRATION_MS;
-        ArrayDeque<ActivitySample> activity = new ArrayDeque<>();
-        long activityDurationMs = 0L;
-        long loudDurationMs = 0L;
+        RollingActivityWindow activity = new RollingActivityWindow(32);
         String sensitivity = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SENSITIVITY, "medium");
         double baselineMultiplier = sensitivityMultiplier(sensitivity);
         long rollingWindowMs = activityWindowMs(sensitivity);
@@ -168,8 +169,6 @@ public final class NoiseMonitorService extends Service {
                     recalibrationRequested = false;
                     calibrationSamples.clear();
                     activity.clear();
-                    activityDurationMs = 0L;
-                    loudDurationMs = 0L;
                     calibrationEnd = nowElapsed + CALIBRATION_MS;
                     updateMonitoringPreference(true, "calibrating");
                     sendStatus(true, "calibrating");
@@ -198,20 +197,10 @@ public final class NoiseMonitorService extends Service {
 
                 long sampleDurationMs = Math.max(1L, Math.round(count * 1000.0 / 16000.0));
                 boolean loud = rms >= calibratedThreshold;
-                activity.addLast(new ActivitySample(sampleDurationMs, loud));
-                activityDurationMs += sampleDurationMs;
-                if (loud) loudDurationMs += sampleDurationMs;
+                activity.add(sampleDurationMs, loud, rollingWindowMs);
 
-                while (activityDurationMs > rollingWindowMs && !activity.isEmpty()) {
-                    ActivitySample removed = activity.removeFirst();
-                    activityDurationMs -= removed.durationMs;
-                    if (removed.loud) loudDurationMs -= removed.durationMs;
-                }
-
-                double loudFraction = activityDurationMs == 0L
-                        ? 0.0
-                        : (double) loudDurationMs / (double) activityDurationMs;
-                if (activityDurationMs >= minimumObservedMs
+                double loudFraction = activity.loudFraction();
+                if (activity.durationMs() >= minimumObservedMs
                         && loudFraction >= requiredLoudFraction) {
                     long now = System.currentTimeMillis();
                     if (now - lastAlertAt >= ALERT_COOLDOWN_MS) {
@@ -219,8 +208,6 @@ public final class NoiseMonitorService extends Service {
                         deliverAlertWithRetry(rms);
                     }
                     activity.clear();
-                    activityDurationMs = 0L;
-                    loudDurationMs = 0L;
                 }
 
                 if (nowElapsed - lastStatusAt >= STATUS_INTERVAL_MS) {
@@ -257,38 +244,82 @@ public final class NoiseMonitorService extends Service {
         return 0.42;
     }
 
-    private static final class ActivitySample {
-        final long durationMs;
-        final boolean loud;
+    private static final class RollingActivityWindow {
+        private final long[] durationsMs;
+        private final boolean[] loud;
+        private int head;
+        private int size;
+        private long totalDurationMs;
+        private long loudDurationMs;
 
-        ActivitySample(long durationMs, boolean loud) {
-            this.durationMs = durationMs;
-            this.loud = loud;
+        RollingActivityWindow(int capacity) {
+            durationsMs = new long[capacity];
+            loud = new boolean[capacity];
+        }
+
+        void add(long durationMs, boolean isLoud, long maxDurationMs) {
+            if (size == durationsMs.length) removeOldest();
+            int tail = (head + size) % durationsMs.length;
+            durationsMs[tail] = durationMs;
+            loud[tail] = isLoud;
+            size++;
+            totalDurationMs += durationMs;
+            if (isLoud) loudDurationMs += durationMs;
+            while (size > 0 && totalDurationMs > maxDurationMs) removeOldest();
+        }
+
+        private void removeOldest() {
+            long durationMs = durationsMs[head];
+            if (loud[head]) loudDurationMs -= durationMs;
+            totalDurationMs -= durationMs;
+            head = (head + 1) % durationsMs.length;
+            size--;
+        }
+
+        long durationMs() {
+            return totalDurationMs;
+        }
+
+        double loudFraction() {
+            return totalDurationMs == 0L ? 0.0 : (double) loudDurationMs / totalDurationMs;
+        }
+
+        void clear() {
+            head = 0;
+            size = 0;
+            totalDurationMs = 0L;
+            loudDurationMs = 0L;
         }
     }
 
     private void deliverAlertWithRetry(double rms) {
+        if (!alertRetryActive.compareAndSet(false, true)) return;
         String alertId = UUID.randomUUID().toString();
         Thread retry = new Thread(() -> {
-            for (int attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
-                if (!running || isAcknowledged(alertId)) return;
-                sendToConnectedNodes(
-                        Protocol.NOISE_PATH,
-                        Protocol.encodeAlert(alertId, Protocol.ALERT_TYPE_NOISE, rms)
-                );
-                if (attempt < MAX_SEND_ATTEMPTS - 1) {
-                    try {
-                        Thread.sleep(RETRY_INTERVAL_MS);
-                    } catch (InterruptedException interrupted) {
-                        Thread.currentThread().interrupt();
-                        return;
+            try {
+                for (int attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt++) {
+                    if (!running || isAcknowledged(alertId)) return;
+                    sendToConnectedNodes(
+                            Protocol.NOISE_PATH,
+                            Protocol.encodeAlert(alertId, Protocol.ALERT_TYPE_NOISE, rms)
+                    );
+                    if (attempt < MAX_SEND_ATTEMPTS - 1) {
+                        try {
+                            Thread.sleep(RETRY_INTERVAL_MS);
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
                     }
                 }
-            }
-            if (!isAcknowledged(alertId)) {
-                updateNotification("Alert not confirmed — check phone");
+                if (!isAcknowledged(alertId)) {
+                    updateNotification("Alert not confirmed — check phone");
+                }
+            } finally {
+                alertRetryActive.set(false);
             }
         }, "baby-alert-retry");
+        retry.setPriority(Thread.NORM_PRIORITY - 1);
         retry.start();
     }
 
@@ -373,6 +404,8 @@ public final class NoiseMonitorService extends Service {
     }
 
     private void updateNotification(String text) {
+        if (text.equals(lastNotificationText)) return;
+        lastNotificationText = text;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) manager.notify(NOTIFICATION_ID, notification(text));
     }
