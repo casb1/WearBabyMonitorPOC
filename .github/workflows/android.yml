@@ -50,13 +50,13 @@ jobs:
       - name: Collect APKs
         run: |
           mkdir -p artifacts
-          cp phone/build/outputs/apk/debug/phone-debug.apk artifacts/baby-monitor-phone-v0.6.1-debug.apk
-          cp watch/build/outputs/apk/debug/watch-debug.apk artifacts/baby-monitor-watch-v0.6.1-debug.apk
+          cp phone/build/outputs/apk/debug/phone-debug.apk artifacts/baby-monitor-phone-v0.6.2-debug.apk
+          cp watch/build/outputs/apk/debug/watch-debug.apk artifacts/baby-monitor-watch-v0.6.2-debug.apk
 
       - name: Upload installable APKs
         uses: actions/upload-artifact@v4
         with:
-          name: baby-monitor-v0.6.1-debug-apks
+          name: baby-monitor-v0.6.2-debug-apks
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 14

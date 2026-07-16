@@ -38,6 +38,7 @@ public final class MainActivity extends Activity {
         Button start = button("START", this::ensurePermissionsAndStart);
         Button stop = button("STOP", this::stopMonitor);
         Button test = button("TEST PHONE", this::sendEndToEndTest);
+        Button recalibrate = button("RECALIBRATE ROOM", this::recalibrateRoom);
         sensitivity = button(sensitivityLabel(), this::cycleSensitivity);
 
         LinearLayout layout = new LinearLayout(this);
@@ -49,6 +50,7 @@ public final class MainActivity extends Activity {
         layout.addView(start);
         layout.addView(stop);
         layout.addView(test);
+        layout.addView(recalibrate);
         layout.addView(sensitivity);
 
         ScrollView scrollView = new ScrollView(this);
@@ -64,6 +66,13 @@ public final class MainActivity extends Activity {
                 )
         );
         setContentView(scrollView);
+        refreshStatus();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshStatus();
     }
 
     private Button button(String text, Runnable action) {
@@ -99,6 +108,32 @@ public final class MainActivity extends Activity {
         status.setText("Sensitivity applies next time monitoring starts");
     }
 
+    private void refreshStatus() {
+        android.content.SharedPreferences prefs = getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE);
+        boolean active = prefs.getBoolean(NoiseMonitorService.KEY_MONITORING_ACTIVE, false);
+        String state = prefs.getString(NoiseMonitorService.KEY_MONITORING_STATE, active ? "monitoring" : "stopped");
+        if (!active) {
+            status.setText("Stopped");
+        } else if ("calibrating".equals(state)) {
+            status.setText("Calibrating — keep the room quiet");
+        } else {
+            status.setText("Monitoring");
+        }
+    }
+
+    private void recalibrateRoom() {
+        boolean active = getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE)
+                .getBoolean(NoiseMonitorService.KEY_MONITORING_ACTIVE, false);
+        if (!active) {
+            status.setText("Start monitoring first");
+            return;
+        }
+        Intent intent = new Intent(this, NoiseMonitorService.class);
+        intent.setAction(NoiseMonitorService.ACTION_RECALIBRATE);
+        startForegroundService(intent);
+        status.setText("Recalibrating — keep the room quiet");
+    }
+
     private void ensurePermissionsAndStart() {
         java.util.ArrayList<String> missing = new java.util.ArrayList<>();
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -118,8 +153,14 @@ public final class MainActivity extends Activity {
     }
 
     private void startMonitor() {
+        boolean alreadyActive = getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE)
+                .getBoolean(NoiseMonitorService.KEY_MONITORING_ACTIVE, false);
+        if (alreadyActive) {
+            status.setText("Already monitoring");
+            return;
+        }
         startForegroundService(new Intent(this, NoiseMonitorService.class));
-        status.setText("Calibrating");
+        status.setText("Calibrating — keep the room quiet");
     }
 
     private void stopMonitor() {

@@ -49,6 +49,7 @@ for required, source, label in [
     ("KEY_ALERT_HISTORY", phone_listener, "alert history"),
     ("SENSITIVITY:", watch_main, "watch sensitivity UI"),
     ("ScrollView", watch_main, "scrollable watch UI"),
+    ("RECALIBRATE ROOM", watch_main, "watch recalibration UI"),
 ]:
     if required not in source:
         errors.append(f"Missing {label}: {required}")

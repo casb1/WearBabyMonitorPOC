@@ -1,10 +1,8 @@
-WearBabyMonitorPOC v0.6.1
-versionCode: 9
+WearBabyMonitorPOC v0.6.2
+versionCode: 10
 
-Reliability pass:
-- Watch controls are inside a vertically scrollable container for round displays.
-- Sound detection uses a rolling 2.2-second activity window instead of requiring uninterrupted loud buffers.
-- Brief gaps in talking, babbling, grunting, and whimpering no longer reset detection completely.
-- Medium keeps the v0.6.0 threshold multiplier and roughly comparable minimum loud-time requirement.
-- Phone behavior is unchanged.
-- Watch remains silent and non-vibrating.
+Small reliability pass:
+- Watch status persists when reopening the app.
+- Recalibrate Room button restarts the quiet-room calibration without stopping monitoring.
+- AudioRecord terminal read errors now stop monitoring and notify the phone instead of silently looping.
+- Rolling detector and watch silence guarantees remain unchanged.

@@ -27,6 +27,9 @@ import java.util.UUID;
 public final class NoiseMonitorService extends Service {
     static final String PREFS = "watch_monitor_settings";
     static final String KEY_SENSITIVITY = "sensitivity";
+    static final String KEY_MONITORING_ACTIVE = "monitoring_active";
+    static final String KEY_MONITORING_STATE = "monitoring_state";
+    static final String ACTION_RECALIBRATE = "com.example.wearbabymonitor.RECALIBRATE";
     private static final String CHANNEL_ID = "baby_monitor_running_v3";
     private static final int NOTIFICATION_ID = 1;
     private static final double DEFAULT_THRESHOLD = 0.075;
@@ -47,6 +50,7 @@ public final class NoiseMonitorService extends Service {
     private long lastStatusAt;
     private boolean warnedDisconnected;
     private boolean warnedLowBattery;
+    private volatile boolean recalibrationRequested;
 
     @Override
     public void onCreate() {
@@ -56,8 +60,17 @@ public final class NoiseMonitorService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (running) {
+            startForeground(NOTIFICATION_ID, notification("Monitoring"));
+            if (intent != null && ACTION_RECALIBRATE.equals(intent.getAction())) {
+                recalibrationRequested = true;
+                updateMonitoringPreference(true, "calibrating");
+                updateNotification("Recalibrating room noise…");
+            }
+            return START_NOT_STICKY;
+        }
         startForeground(NOTIFICATION_ID, notification("Calibrating room noise…"));
-        if (!running) startRecordingLoop();
+        startRecordingLoop();
         return START_NOT_STICKY;
     }
 
@@ -70,6 +83,7 @@ public final class NoiseMonitorService extends Service {
         recorder = null;
         if (worker != null) worker.interrupt();
         worker = null;
+        updateMonitoringPreference(false, "stopped");
         if (wasRunning) sendStatus(false, "stopped");
         stopForeground(STOP_FOREGROUND_REMOVE);
         super.onDestroy();
@@ -115,6 +129,7 @@ public final class NoiseMonitorService extends Service {
 
         recorder = audioRecord;
         running = true;
+        updateMonitoringPreference(true, "calibrating");
         worker = new Thread(() -> recordLoop(audioRecord, bufferSize), "baby-noise-monitor");
         worker.start();
     }
@@ -139,10 +154,27 @@ public final class NoiseMonitorService extends Service {
 
             while (running && !Thread.currentThread().isInterrupted()) {
                 int count = audioRecord.read(buffer, 0, buffer.length);
+                if (count == AudioRecord.ERROR_DEAD_OBJECT
+                        || count == AudioRecord.ERROR_INVALID_OPERATION
+                        || count == AudioRecord.ERROR_BAD_VALUE) {
+                    throw new IllegalStateException("AudioRecord read failed: " + count);
+                }
                 if (count <= 0) continue;
 
                 double rms = calculateNormalizedRms(buffer, count);
                 long nowElapsed = SystemClock.elapsedRealtime();
+
+                if (recalibrationRequested) {
+                    recalibrationRequested = false;
+                    calibrationSamples.clear();
+                    activity.clear();
+                    activityDurationMs = 0L;
+                    loudDurationMs = 0L;
+                    calibrationEnd = nowElapsed + CALIBRATION_MS;
+                    updateMonitoringPreference(true, "calibrating");
+                    sendStatus(true, "calibrating");
+                    updateNotification("Recalibrating room noise…");
+                }
 
                 if (nowElapsed < calibrationEnd) {
                     calibrationSamples.add(rms);
@@ -160,6 +192,7 @@ public final class NoiseMonitorService extends Service {
                     calibrationSamples.clear();
                     updateNotification("Monitoring • threshold "
                             + String.format(Locale.US, "%.3f", calibratedThreshold));
+                    updateMonitoringPreference(true, "monitoring");
                     sendStatus(true, "monitoring");
                 }
 
@@ -368,7 +401,16 @@ public final class NoiseMonitorService extends Service {
         }
     }
 
+    private void updateMonitoringPreference(boolean active, String state) {
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putBoolean(KEY_MONITORING_ACTIVE, active)
+                .putString(KEY_MONITORING_STATE, state)
+                .apply();
+    }
+
     private void failMonitoring(String visibleStatus, String state) {
+        updateMonitoringPreference(false, state);
         updateNotification(visibleStatus);
         sendStatus(false, state);
         stopSelf();
