@@ -24,13 +24,13 @@ import java.util.Locale;
 import java.util.UUID;
 
 public final class NoiseMonitorService extends Service {
+    static final String PREFS = "watch_monitor_settings";
+    static final String KEY_SENSITIVITY = "sensitivity";
     private static final String CHANNEL_ID = "baby_monitor_running_v3";
     private static final int NOTIFICATION_ID = 1;
     private static final double DEFAULT_THRESHOLD = 0.075;
     private static final double MIN_THRESHOLD = 0.018;
-    private static final double BASELINE_MULTIPLIER = 3.0;
     private static final long CALIBRATION_MS = 8000L;
-    private static final int REQUIRED_LOUD_WINDOWS = 3;
     private static final long ALERT_COOLDOWN_MS = 10000L;
     private static final long STATUS_INTERVAL_MS = 10000L;
     private static final int MAX_SEND_ATTEMPTS = 6;
@@ -123,6 +123,9 @@ public final class NoiseMonitorService extends Service {
         List<Double> calibrationSamples = new ArrayList<>();
         long calibrationEnd = SystemClock.elapsedRealtime() + CALIBRATION_MS;
         int loudWindows = 0;
+        String sensitivity = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_SENSITIVITY, "medium");
+        double baselineMultiplier = sensitivityMultiplier(sensitivity);
+        int requiredLoudWindows = sensitivityWindows(sensitivity);
 
         try {
             audioRecord.startRecording();
@@ -148,7 +151,7 @@ public final class NoiseMonitorService extends Service {
                             (int) (calibrationSamples.size() * 0.8)
                     );
                     double baseline = calibrationSamples.get(index);
-                    calibratedThreshold = Math.max(MIN_THRESHOLD, baseline * BASELINE_MULTIPLIER);
+                    calibratedThreshold = Math.max(MIN_THRESHOLD, baseline * baselineMultiplier);
                     calibrationSamples.clear();
                     updateNotification("Monitoring • threshold "
                             + String.format(Locale.US, "%.3f", calibratedThreshold));
@@ -156,7 +159,7 @@ public final class NoiseMonitorService extends Service {
                 }
 
                 loudWindows = rms >= calibratedThreshold ? loudWindows + 1 : 0;
-                if (loudWindows >= REQUIRED_LOUD_WINDOWS) {
+                if (loudWindows >= requiredLoudWindows) {
                     long now = System.currentTimeMillis();
                     if (now - lastAlertAt >= ALERT_COOLDOWN_MS) {
                         lastAlertAt = now;
@@ -175,6 +178,18 @@ public final class NoiseMonitorService extends Service {
         } catch (IllegalStateException audioFailure) {
             failMonitoring("Audio monitoring stopped", "audio_error");
         }
+    }
+
+    private double sensitivityMultiplier(String sensitivity) {
+        if ("high".equals(sensitivity)) return 2.4;
+        if ("low".equals(sensitivity)) return 3.8;
+        return 3.0;
+    }
+
+    private int sensitivityWindows(String sensitivity) {
+        if ("high".equals(sensitivity)) return 2;
+        if ("low".equals(sensitivity)) return 4;
+        return 3;
     }
 
     private void deliverAlertWithRetry(double rms) {

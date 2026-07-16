@@ -41,6 +41,17 @@ for required in [
     if required not in watch_source:
         errors.append(f"Watch silence guard missing: {required}")
 
+phone_main = (root / "phone/src/main/java/com/example/wearbabymonitor/MainActivity.java").read_text(encoding="utf-8")
+phone_listener = (root / "phone/src/main/java/com/example/wearbabymonitor/BabyMonitorListenerService.java").read_text(encoding="utf-8")
+watch_main = (root / "watch/src/main/java/com/example/wearbabymonitor/MainActivity.java").read_text(encoding="utf-8")
+for required, source, label in [
+    ("ACKNOWLEDGE ALERT", phone_main, "phone acknowledgement UI"),
+    ("KEY_ALERT_HISTORY", phone_listener, "alert history"),
+    ("SENSITIVITY:", watch_main, "watch sensitivity UI"),
+]:
+    if required not in source:
+        errors.append(f"Missing {label}: {required}")
+
 kotlin_files = list(root.rglob("*.kt"))
 if kotlin_files:
     errors.append("Unexpected Kotlin source remains: " + ", ".join(str(p.relative_to(root)) for p in kotlin_files))

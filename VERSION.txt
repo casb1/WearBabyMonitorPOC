@@ -1,13 +1,10 @@
-WearBabyMonitorPOC v0.5.1
-versionCode: 7
+WearBabyMonitorPOC v0.6.0
+versionCode: 8
 
-Fresh Java rebuild:
-- Pure Android Java source; no Kotlin or AndroidX dependency.
-- Phone and watch message filters exactly match /baby_noise, /baby_status, and /baby_ack.
-- Deprecated BIND_LISTENER is absent.
-- GitHub Actions builds assembleDebug only; lint cannot block APK production.
-- Watch notification channel, notifications, buttons, and haptic feedback are silent/non-vibrating.
-
-Build fix:
-- Removed Notification.Builder.setSilent(true), which is not available on android.app.Notification.Builder.
-- Silence remains enforced by notification-channel sound/vibration settings.
+Usability pass:
+- Clear phone monitoring/battery status.
+- Persistent active noise alert requiring acknowledgement.
+- Eight-entry timestamped alert history.
+- Low/Medium/High watch sensitivity presets; Medium preserves v0.5.1 behavior.
+- No heartbeat timestamp shown in the phone UI.
+- Watch remains silent and non-vibrating.

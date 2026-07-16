@@ -1,4 +1,4 @@
-# Wear Baby Monitor POC v0.5.1
+# Wear Baby Monitor POC v0.6.0
 
 A deliberately small proof of concept with two Android application modules:
 
@@ -39,8 +39,8 @@ gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:a
 
 The successful workflow artifact contains:
 
-- `baby-monitor-phone-v0.5.1-debug.apk`
-- `baby-monitor-watch-v0.5.1-debug.apk`
+- `baby-monitor-phone-v0.6.0-debug.apk`
+- `baby-monitor-watch-v0.6.0-debug.apk`
 
 The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 
@@ -53,3 +53,11 @@ The workflow intentionally does not run lint as a build gate. Android compilatio
 5. Confirm the phone alarms and the watch displays **Phone confirmed** without sound or vibration.
 
 See `docs/TEST_CHECKLIST.md` before longer testing.
+
+
+## v0.6.0 usability pass
+
+- The phone shows receiver, watch monitoring, and watch battery state without exposing heartbeat timestamps.
+- A real noise event creates a persistent active-alert state until acknowledged in the phone app.
+- The phone keeps the eight most recent alert and acknowledgement events with timestamps.
+- The watch offers Low, Medium, and High sensitivity. Medium preserves the detector behavior from v0.5.1. Changes apply the next time monitoring starts.

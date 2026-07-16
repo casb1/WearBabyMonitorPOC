@@ -22,6 +22,7 @@ public final class MainActivity extends Activity {
     private static final long TEST_ACK_POLL_MS = 250L;
 
     private TextView status;
+    private Button sensitivity;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity {
         Button start = button("START", this::ensurePermissionsAndStart);
         Button stop = button("STOP", this::stopMonitor);
         Button test = button("TEST PHONE", this::sendEndToEndTest);
+        sensitivity = button(sensitivityLabel(), this::cycleSensitivity);
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -46,6 +48,7 @@ public final class MainActivity extends Activity {
         layout.addView(start);
         layout.addView(stop);
         layout.addView(test);
+        layout.addView(sensitivity);
         setContentView(layout);
     }
 
@@ -60,6 +63,24 @@ public final class MainActivity extends Activity {
     private void silenceView(View view) {
         view.setSoundEffectsEnabled(false);
         view.setHapticFeedbackEnabled(false);
+    }
+
+    private String sensitivityLabel() {
+        String value = getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE)
+                .getString(NoiseMonitorService.KEY_SENSITIVITY, "medium");
+        return "SENSITIVITY: " + value.toUpperCase(java.util.Locale.US);
+    }
+
+    private void cycleSensitivity() {
+        String current = getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE)
+                .getString(NoiseMonitorService.KEY_SENSITIVITY, "medium");
+        String next = "medium";
+        if ("medium".equals(current)) next = "high";
+        else if ("high".equals(current)) next = "low";
+        getSharedPreferences(NoiseMonitorService.PREFS, MODE_PRIVATE)
+                .edit().putString(NoiseMonitorService.KEY_SENSITIVITY, next).apply();
+        sensitivity.setText(sensitivityLabel());
+        status.setText("Sensitivity applies next time monitoring starts");
     }
 
     private void ensurePermissionsAndStart() {

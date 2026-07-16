@@ -3,6 +3,7 @@ package com.example.wearbabymonitor;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 
@@ -11,7 +12,10 @@ import com.google.android.gms.wearable.Wearable;
 import com.google.android.gms.wearable.WearableListenerService;
 
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public final class BabyMonitorListenerService extends WearableListenerService {
@@ -22,14 +26,18 @@ public final class BabyMonitorListenerService extends WearableListenerService {
     static final String KEY_RECEIVER_ENABLED = "receiver_enabled";
     static final String KEY_WATCH_MONITORING = "watch_monitoring";
     static final String KEY_LOW_BATTERY_WARNED = "low_battery_warned";
+    static final String KEY_ACTIVE_ALERT = "active_alert";
+    static final String KEY_ALERT_HISTORY = "alert_history";
 
     static final String ALERT_CHANNEL_ID = "baby_monitor_alerts_v3";
     static final String WARNING_CHANNEL_ID = "baby_monitor_warnings_v3";
+    static final int ACTIVE_ALERT_NOTIFICATION_ID = 4100;
     static final int LOW_BATTERY_NOTIFICATION_ID = 4202;
     static final int MONITORING_STOPPED_NOTIFICATION_ID = 4203;
 
     private static final int LOW_BATTERY_PERCENT = 20;
     private static final int LOW_BATTERY_RESET_PERCENT = 25;
+    private static final int MAX_HISTORY_LINES = 8;
 
     @Override
     public void onMessageReceived(MessageEvent event) {
@@ -58,8 +66,49 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         );
 
         if (!duplicate) {
-            showAlert(Protocol.ALERT_TYPE_TEST.equals(alert.type));
+            boolean test = Protocol.ALERT_TYPE_TEST.equals(alert.type);
+            if (!test) {
+                prefs.edit().putBoolean(KEY_ACTIVE_ALERT, true).apply();
+                appendHistory(prefs, "Noise detected");
+            } else {
+                appendHistory(prefs, "Test received");
+            }
+            showAlert(test);
         }
+    }
+
+    static void acknowledgeCurrentAlert(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (prefs.getBoolean(KEY_ACTIVE_ALERT, false)) {
+            String old = prefs.getString(KEY_ALERT_HISTORY, "");
+            String line = timestamp() + " — Alert acknowledged";
+            prefs.edit()
+                    .putBoolean(KEY_ACTIVE_ALERT, false)
+                    .putString(KEY_ALERT_HISTORY, prependLine(line, old))
+                    .apply();
+        }
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager != null) manager.cancel(ACTIVE_ALERT_NOTIFICATION_ID);
+    }
+
+    private void appendHistory(SharedPreferences prefs, String event) {
+        String old = prefs.getString(KEY_ALERT_HISTORY, "");
+        prefs.edit().putString(KEY_ALERT_HISTORY, prependLine(timestamp() + " — " + event, old)).apply();
+    }
+
+    private static String prependLine(String line, String old) {
+        String combined = old == null || old.isEmpty() ? line : line + "\n" + old;
+        String[] lines = combined.split("\n");
+        StringBuilder result = new StringBuilder();
+        for (int index = 0; index < Math.min(lines.length, MAX_HISTORY_LINES); index++) {
+            if (index > 0) result.append('\n');
+            result.append(lines[index]);
+        }
+        return result.toString();
+    }
+
+    private static String timestamp() {
+        return new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
     }
 
     private void handleStatus(String payload) {
@@ -80,21 +129,13 @@ public final class BabyMonitorListenerService extends WearableListenerService {
                 .apply();
 
         if (receiverEnabled && previouslyMonitoring && !monitoring) {
-            showWarning(
-                    "Watch monitoring stopped",
-                    stateText(state),
-                    MONITORING_STOPPED_NOTIFICATION_ID
-            );
+            showWarning("Watch monitoring stopped", stateText(state), MONITORING_STOPPED_NOTIFICATION_ID);
         }
 
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (battery >= 0 && battery <= LOW_BATTERY_PERCENT && !lowBatteryWarned) {
             prefs.edit().putBoolean(KEY_LOW_BATTERY_WARNED, true).apply();
-            showWarning(
-                    "Watch battery low",
-                    "The baby-monitor watch has " + battery + "% battery remaining.",
-                    LOW_BATTERY_NOTIFICATION_ID
-            );
+            showWarning("Watch battery low", "The baby-monitor watch has " + battery + "% battery remaining.", LOW_BATTERY_NOTIFICATION_ID);
         } else if (battery >= LOW_BATTERY_RESET_PERCENT && lowBatteryWarned) {
             prefs.edit().putBoolean(KEY_LOW_BATTERY_WARNED, false).apply();
             if (manager != null) manager.cancel(LOW_BATTERY_NOTIFICATION_ID);
@@ -105,9 +146,7 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         Map<String, String> result = new HashMap<>();
         for (String item : payload.split(",")) {
             int separator = item.indexOf('=');
-            if (separator > 0) {
-                result.put(item.substring(0, separator), item.substring(separator + 1));
-            }
+            if (separator > 0) result.put(item.substring(0, separator), item.substring(separator + 1));
         }
         return result;
     }
@@ -126,38 +165,28 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         if (manager == null) return;
 
         PendingIntent openApp = PendingIntent.getActivity(
-                this,
-                0,
-                new Intent(this, MainActivity.class),
+                this, 0, new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
         Notification notification = new Notification.Builder(this, ALERT_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(test ? "Baby monitor test received" : "Noise detected")
-                .setContentText(test
-                        ? "The complete watch-to-phone alert path is working."
-                        : "The watch heard a sustained sound in the baby's room.")
+                .setContentText(test ? "The complete watch-to-phone alert path is working." : "Open the app and acknowledge the alert.")
                 .setCategory(Notification.CATEGORY_ALARM)
-                .setAutoCancel(true)
+                .setOngoing(!test)
+                .setAutoCancel(test)
                 .setContentIntent(openApp)
                 .build();
 
-        manager.notify((int) (System.currentTimeMillis() & 0x7fffffff), notification);
+        manager.notify(test ? (int) (System.currentTimeMillis() & 0x7fffffff) : ACTIVE_ALERT_NOTIFICATION_ID, notification);
     }
 
     private void showWarning(String title, String text, int id) {
         NotificationChannels.create(this);
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;
-
-        PendingIntent openApp = PendingIntent.getActivity(
-                this,
-                0,
-                new Intent(this, MainActivity.class),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-        );
-
+        PendingIntent openApp = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new Notification.Builder(this, WARNING_CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
                 .setContentTitle(title)
@@ -172,16 +201,11 @@ public final class BabyMonitorListenerService extends WearableListenerService {
 
     private String stateText(String state) {
         switch (state) {
-            case "microphone_unavailable":
-                return "The watch microphone could not be opened.";
-            case "permission_lost":
-                return "The watch lost microphone permission.";
-            case "audio_error":
-                return "Audio monitoring stopped unexpectedly.";
-            case "user_stopped":
-                return "Monitoring was stopped on the watch.";
-            default:
-                return "The watch is no longer monitoring the room.";
+            case "microphone_unavailable": return "The watch microphone could not be opened.";
+            case "permission_lost": return "The watch lost microphone permission.";
+            case "audio_error": return "Audio monitoring stopped unexpectedly.";
+            case "user_stopped": return "Monitoring was stopped on the watch.";
+            default: return "The watch is no longer monitoring the room.";
         }
     }
 }

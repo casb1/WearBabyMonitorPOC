@@ -19,6 +19,8 @@ public final class MainActivity extends Activity {
     private static final int LOCAL_TEST_NOTIFICATION_ID = 999;
 
     private TextView status;
+    private TextView alertState;
+    private TextView history;
     private boolean startAfterPermission;
 
     @Override
@@ -26,11 +28,11 @@ public final class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         NotificationChannels.create(this);
 
-        status = new TextView(this);
-        status.setTextSize(19f);
-        status.setGravity(Gravity.CENTER);
-        status.setPadding(32, 32, 32, 32);
+        status = textView(19f);
+        alertState = textView(22f);
+        history = textView(15f);
 
+        Button acknowledge = button("ACKNOWLEDGE ALERT", this::acknowledgeAlert);
         Button enable = button("ENABLE RECEIVER", this::enableReceiverWithPermission);
         Button disable = button("DISABLE RECEIVER", this::disableReceiver);
         Button test = button("TEST PHONE ALARM", this::testPhoneAlarmWithPermission);
@@ -41,10 +43,13 @@ public final class MainActivity extends Activity {
         layout.setGravity(Gravity.CENTER);
         layout.setPadding(24, 24, 24, 24);
         layout.addView(status);
+        layout.addView(alertState);
+        layout.addView(acknowledge);
         layout.addView(enable);
         layout.addView(disable);
         layout.addView(test);
         layout.addView(settings);
+        layout.addView(history);
         setContentView(layout);
         refreshStatus();
     }
@@ -53,6 +58,14 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (status != null) refreshStatus();
+    }
+
+    private TextView textView(float size) {
+        TextView view = new TextView(this);
+        view.setTextSize(size);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(24, 20, 24, 20);
+        return view;
     }
 
     private Button button(String text, Runnable action) {
@@ -97,6 +110,11 @@ public final class MainActivity extends Activity {
         refreshStatus();
     }
 
+    private void acknowledgeAlert() {
+        BabyMonitorListenerService.acknowledgeCurrentAlert(this);
+        refreshStatus();
+    }
+
     private void testPhoneAlarmWithPermission() {
         if (needsNotificationPermission()) {
             startAfterPermission = false;
@@ -138,6 +156,7 @@ public final class MainActivity extends Activity {
         boolean enabled = prefs.getBoolean(BabyMonitorListenerService.KEY_RECEIVER_ENABLED, false);
         boolean monitoring = prefs.getBoolean(BabyMonitorListenerService.KEY_WATCH_MONITORING, false);
         int battery = prefs.getInt(BabyMonitorListenerService.KEY_WATCH_BATTERY, -1);
+        boolean activeAlert = prefs.getBoolean(BabyMonitorListenerService.KEY_ACTIVE_ALERT, false);
 
         if (!enabled) {
             status.setText("Receiver disabled");
@@ -148,6 +167,10 @@ public final class MainActivity extends Activity {
         } else {
             status.setText("Receiver enabled\nWaiting for watch monitoring");
         }
+
+        alertState.setText(activeAlert ? "⚠ NOISE DETECTED — ACKNOWLEDGE" : "No active alert");
+        String value = prefs.getString(BabyMonitorListenerService.KEY_ALERT_HISTORY, "");
+        history.setText(value.isEmpty() ? "Alert history\nNo alerts yet" : "Alert history\n" + value);
     }
 
     @Override
