@@ -3,8 +3,10 @@
 ## Build and installation
 
 - GitHub Actions finishes the `Build phone and watch debug APKs` step successfully.
-- Both APKs are present in the workflow artifact.
-- Phone and watch installs use the APKs from the same workflow run.
+- The workflow provides separate PHONE-only and WATCH-only artifacts, each containing one APK.
+- Extract the artifacts; do not install an artifact ZIP as an APK bundle.
+- Install only the `INSTALL-ON-PHONE` APK on the phone and only the `INSTALL-ON-WATCH` APK on the watch.
+- Phone and watch installs use APKs from the same workflow run.
 
 ## Silence on watch
 

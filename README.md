@@ -37,16 +37,18 @@ GitHub Actions runs a source preflight and then:
 gradle --no-daemon --stacktrace --warning-mode all :phone:assembleDebug :watch:assembleDebug
 ```
 
-The successful workflow artifact contains:
+The successful workflow produces two separate artifacts:
 
-- `baby-monitor-phone-v0.6.4-debug.apk`
-- `baby-monitor-watch-v0.6.4-debug.apk`
+- `baby-monitor-v0.6.4-PHONE-only` contains `INSTALL-ON-PHONE-baby-monitor-v0.6.4-debug.apk`.
+- `baby-monitor-v0.6.4-WATCH-only` contains `INSTALL-ON-WATCH-baby-monitor-v0.6.4-debug.apk`.
+
+Do not submit both APKs to one device as a split-APK bundle. The phone and watch apps intentionally share an application ID for Wear OS Data Layer communication, so installing both together fails with `Split null was defined multiple times`. Extract each artifact and install only the phone APK on the phone and only the watch APK on the watch.
 
 The workflow intentionally does not run lint as a build gate. Android compilation and APK packaging are the acceptance gate for this POC.
 
 ## First device test
 
-1. Install the phone APK on the phone and the watch APK on the paired watch.
+1. Download and extract the two separate workflow artifacts. Install only the `INSTALL-ON-PHONE` APK on the phone and only the `INSTALL-ON-WATCH` APK on the paired watch.
 2. Open the phone app, grant notification permission, and tap **ENABLE RECEIVER**.
 3. Open the watch app, grant microphone and notification permissions, and tap **START**.
 4. Wait through calibration, then tap **TEST PHONE**.
