@@ -43,6 +43,7 @@ for required in [
 
 phone_main = (root / "phone/src/main/java/com/example/wearbabymonitor/MainActivity.java").read_text(encoding="utf-8")
 phone_listener = (root / "phone/src/main/java/com/example/wearbabymonitor/BabyMonitorListenerService.java").read_text(encoding="utf-8")
+phone_channels = (root / "phone/src/main/java/com/example/wearbabymonitor/NotificationChannels.java").read_text(encoding="utf-8")
 watch_main = (root / "watch/src/main/java/com/example/wearbabymonitor/MainActivity.java").read_text(encoding="utf-8")
 for required, source, label in [
     ("ACKNOWLEDGE ALERT", phone_main, "phone acknowledgement UI"),
@@ -64,6 +65,14 @@ if "STATUS_INTERVAL_MS = 60000L" not in watch_source:
     errors.append("60-second battery-optimized status interval is missing")
 if "KEY_BATTERY_DRAIN_PER_HOUR" not in phone_listener:
     errors.append("Phone battery-drain estimate is missing")
+if "alertsCanNotify" not in phone_channels or "areNotificationsEnabled" not in phone_channels:
+    errors.append("Phone alert readiness check is missing")
+if "KEY_RECEIVER_ENABLED" not in phone_listener or "acknowledgeWatch" not in phone_listener:
+    errors.append("Phone acknowledgement guard is missing")
+notification_index = phone_listener.index("showAlert(test)")
+ack_index = phone_listener.index("acknowledgeWatch(event, alert.id)", notification_index)
+if notification_index > ack_index:
+    errors.append("Watch acknowledgement must happen after phone notification delivery")
 
 if errors:
     print("Source preflight failed:", file=sys.stderr)

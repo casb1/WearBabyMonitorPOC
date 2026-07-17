@@ -19,6 +19,9 @@
 - TEST PHONE causes a phone alarm.
 - Watch changes to Phone confirmed after acknowledgement.
 - Repeated delivery of one alert ID does not create duplicate phone alarms.
+- With the phone receiver disabled, TEST PHONE ends with Test failed and produces no phone alarm.
+- With the baby-monitor alert channel disabled in Android settings, TEST PHONE ends with Test failed and phone history records the blocked alert once.
+- Re-enable the alert channel and confirm TEST PHONE succeeds again.
 
 ## Monitoring and failures
 

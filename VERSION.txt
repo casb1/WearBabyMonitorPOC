@@ -1,5 +1,5 @@
-WearBabyMonitorPOC v0.6.3
-versionCode: 11
+WearBabyMonitorPOC v0.6.4
+versionCode: 12
 
 Battery optimization pass:
 - Routine watch status interval increased to 60 seconds.
@@ -7,3 +7,7 @@ Battery optimization pass:
 - Phone watchdog cadence and disconnect timeout adjusted for 60-second status updates.
 - Phone displays a measured battery-drain estimate after enough session data exists.
 - Watch remains completely silent and non-vibrating.
+
+Trustworthy acknowledgement pass:
+- Disabled or notification-blocked phone receivers do not acknowledge watch alerts.
+- The watch only confirms an alert after the phone accepts its notification.
