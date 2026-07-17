@@ -59,4 +59,14 @@ final class NotificationChannels {
         manager.createNotificationChannel(warnings);
         manager.createNotificationChannel(ongoing);
     }
+
+    static boolean alertsCanNotify(Context context) {
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null || !manager.areNotificationsEnabled()) return false;
+
+        NotificationChannel channel = manager.getNotificationChannel(
+                BabyMonitorListenerService.ALERT_CHANNEL_ID
+        );
+        return channel != null && channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+    }
 }

@@ -88,6 +88,11 @@ public final class MainActivity extends Activity {
     }
 
     private void enableReceiver() {
+        NotificationChannels.create(this);
+        if (!NotificationChannels.alertsCanNotify(this)) {
+            status.setText("Enable baby monitor alerts in phone notification settings");
+            return;
+        }
         getSharedPreferences(BabyMonitorListenerService.PREFS, MODE_PRIVATE)
                 .edit()
                 .putBoolean(BabyMonitorListenerService.KEY_RECEIVER_ENABLED, true)
@@ -132,6 +137,10 @@ public final class MainActivity extends Activity {
 
     private void showLocalTestAlert() {
         NotificationChannels.create(this);
+        if (!NotificationChannels.alertsCanNotify(this)) {
+            status.setText("Phone alarm blocked — enable baby monitor alerts in settings");
+            return;
+        }
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;
         Notification notification = new Notification.Builder(this, BabyMonitorListenerService.ALERT_CHANNEL_ID)
@@ -164,7 +173,9 @@ public final class MainActivity extends Activity {
         int battery = prefs.getInt(BabyMonitorListenerService.KEY_WATCH_BATTERY, -1);
         boolean activeAlert = prefs.getBoolean(BabyMonitorListenerService.KEY_ACTIVE_ALERT, false);
 
-        if (!enabled) {
+        if (enabled && !NotificationChannels.alertsCanNotify(this)) {
+            status.setText("Receiver needs attention\nEnable baby monitor alerts in phone settings");
+        } else if (!enabled) {
             status.setText("Receiver disabled");
         } else if (monitoring && battery >= 0) {
             status.setText("Receiver enabled\nWatch monitoring • " + battery + "%");

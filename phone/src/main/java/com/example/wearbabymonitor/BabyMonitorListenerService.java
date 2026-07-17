@@ -31,6 +31,7 @@ public final class BabyMonitorListenerService extends WearableListenerService {
     static final String KEY_BATTERY_SESSION_START_TIME = "battery_session_start_time";
     static final String KEY_BATTERY_SESSION_START_LEVEL = "battery_session_start_level";
     static final String KEY_BATTERY_DRAIN_PER_HOUR = "battery_drain_per_hour";
+    static final String KEY_LAST_BLOCKED_ALERT_ID = "last_blocked_alert_id";
 
     static final String ALERT_CHANNEL_ID = "baby_monitor_alerts_v3";
     static final String WARNING_CHANNEL_ID = "baby_monitor_warnings_v3";
@@ -58,28 +59,41 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         if (alert == null || alert.id.isEmpty()) return;
 
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (!prefs.getBoolean(KEY_RECEIVER_ENABLED, false)) return;
+
         boolean duplicate = alert.id.equals(prefs.getString(KEY_LAST_ALERT_ID, null));
-        prefs.edit()
+        if (duplicate) {
+            acknowledgeWatch(event, alert.id);
+            return;
+        }
+
+        if (!NotificationChannels.alertsCanNotify(this)) {
+            if (!alert.id.equals(prefs.getString(KEY_LAST_BLOCKED_ALERT_ID, null))) {
+                prefs.edit().putString(KEY_LAST_BLOCKED_ALERT_ID, alert.id).apply();
+                appendHistory(prefs, "Alert blocked — enable phone notifications");
+            }
+            return;
+        }
+
+        boolean test = Protocol.ALERT_TYPE_TEST.equals(alert.type);
+        if (!showAlert(test)) return;
+
+        SharedPreferences.Editor editor = prefs.edit()
                 .putString(KEY_LAST_ALERT_ID, alert.id)
                 .putLong(KEY_LAST_HEARTBEAT, System.currentTimeMillis())
-                .apply();
+                .remove(KEY_LAST_BLOCKED_ALERT_ID);
+        if (!test) editor.putBoolean(KEY_ACTIVE_ALERT, true);
+        editor.apply();
+        appendHistory(prefs, test ? "Test received" : "Noise detected");
+        acknowledgeWatch(event, alert.id);
+    }
 
+    private void acknowledgeWatch(MessageEvent event, String alertId) {
         Wearable.getMessageClient(this).sendMessage(
                 event.getSourceNodeId(),
                 Protocol.ACK_PATH,
-                alert.id.getBytes(StandardCharsets.UTF_8)
+                alertId.getBytes(StandardCharsets.UTF_8)
         );
-
-        if (!duplicate) {
-            boolean test = Protocol.ALERT_TYPE_TEST.equals(alert.type);
-            if (!test) {
-                prefs.edit().putBoolean(KEY_ACTIVE_ALERT, true).apply();
-                appendHistory(prefs, "Noise detected");
-            } else {
-                appendHistory(prefs, "Test received");
-            }
-            showAlert(test);
-        }
     }
 
     static void acknowledgeCurrentAlert(Context context) {
@@ -186,10 +200,10 @@ public final class BabyMonitorListenerService extends WearableListenerService {
         }
     }
 
-    private void showAlert(boolean test) {
+    private boolean showAlert(boolean test) {
         NotificationChannels.create(this);
         NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager == null) return;
+        if (manager == null) return false;
 
         PendingIntent openApp = PendingIntent.getActivity(
                 this, 0, new Intent(this, MainActivity.class),
@@ -206,7 +220,12 @@ public final class BabyMonitorListenerService extends WearableListenerService {
                 .setContentIntent(openApp)
                 .build();
 
-        manager.notify(test ? (int) (System.currentTimeMillis() & 0x7fffffff) : ACTIVE_ALERT_NOTIFICATION_ID, notification);
+        try {
+            manager.notify(test ? (int) (System.currentTimeMillis() & 0x7fffffff) : ACTIVE_ALERT_NOTIFICATION_ID, notification);
+            return true;
+        } catch (SecurityException notificationsBlocked) {
+            return false;
+        }
     }
 
     private void showWarning(String title, String text, int id) {
